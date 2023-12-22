@@ -14,6 +14,7 @@ var cam: raylib.Camera2D = .{
     .rotation = 0,
 };
 var prev_mouse_pos: ?raylib.Vector2 = null;
+var captured_mouse: bool = false;
 
 var points: [6]raylib.Vector2 = .{
     .{ .x = 0.0, .y = 0.0 },
@@ -136,8 +137,14 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         if (prev_mouse_pos) |pmp| {
             const this_pos = raylib.GetMousePosition();
             const delta = raylib.Vector2Subtract(pmp, this_pos);
-            if (raylib.IsMouseButtonDown(raylib.MOUSE_BUTTON_LEFT)) {
+            if (raylib.IsMouseButtonPressed(raylib.MOUSE_BUTTON_LEFT) and rest_of_viewport.mouseWithin()) {
+                captured_mouse = true;
+            }
+            if (captured_mouse) {
                 cam.target = raylib.GetScreenToWorld2D(raylib.Vector2Add(cam.offset, delta), cam);
+                if (raylib.IsMouseButtonReleased(raylib.MOUSE_BUTTON_LEFT)) {
+                    captured_mouse = false;
+                }
             }
         }
         prev_mouse_pos = raylib.GetMousePosition();
@@ -147,6 +154,6 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
             cam.zoom = std.math.clamp(cam.zoom + (dir * 0.1), 0.1, 3.0);
         }
     } else {
-        prev_mouse_pos = null;
+        captured_mouse = false;
     }
 }
