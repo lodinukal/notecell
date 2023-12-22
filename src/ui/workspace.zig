@@ -7,6 +7,18 @@ var topbar_height: f32 = 45.0;
 var topbar_resizer = util.Resizer.usingSides(.{
     .bottom = true,
 });
+
+var zoom: f32 = 1.0;
+var view_offset: raylib.Vector2 = .{ .x = 0.0, .y = 0.0 };
+
+var points: [5]raylib.Vector2 = .{
+    .{ .x = 1.0, .y = 1.0 },
+    .{ .x = 2.0, .y = 1.0 },
+    .{ .x = 2.0, .y = 2.0 },
+    .{ .x = 3.0, .y = 2.0 },
+    .{ .x = 4.0, .y = 1.0 },
+};
+
 pub fn workspace(rec: util.Rect) void {
     var _rec = rec;
     const topbar_rec = _rec.cutTop(topbar_height);
@@ -18,37 +30,67 @@ pub fn workspace(rec: util.Rect) void {
     // }
     var rest_of_viewport = _rec;
 
-    const cell_size = 100;
+    const cell_size: f32 = 100 / zoom;
 
-    const x_cell_count: usize = @intFromFloat(std.math.floor(rest_of_viewport.width() / cell_size));
-    const y_cell_count: usize = @intFromFloat(std.math.floor(rest_of_viewport.height() / cell_size));
+    const half_x: f32 = rest_of_viewport.width() / 2;
+    const half_y: f32 = rest_of_viewport.height() / 2;
 
-    const x_space_left = rest_of_viewport.width() - @as(f32, @floatFromInt(x_cell_count * cell_size));
-    const y_space_left = rest_of_viewport.height() - @as(f32, @floatFromInt(y_cell_count * cell_size));
+    const center_x = view_offset.x;
+    const center_y = view_offset.y;
 
-    const offset_x = x_space_left / 2;
-    const offset_y = y_space_left / 2;
+    const left_bound = center_x - (half_x * zoom);
+    const right_bound = center_x + (half_x * zoom);
+    const top_bound = center_y - (half_y * zoom);
+    const bottom_bound = center_y + (half_y * zoom);
 
-    var start_x: usize = @intFromFloat(rest_of_viewport.min_x);
-    var start_y: usize = @intFromFloat(rest_of_viewport.min_y);
+    const left_bound_cell: isize = @intFromFloat(std.math.floor(left_bound / cell_size));
+    const right_bound_cell: isize = @intFromFloat(std.math.floor(right_bound / cell_size));
+    const horizontal_cells = right_bound_cell - left_bound_cell;
 
-    start_x += @intFromFloat(offset_x);
-    start_y += @intFromFloat(offset_y);
+    const top_bound_cell: isize = @intFromFloat(std.math.floor(top_bound / cell_size));
+    const bottom_bound_cell: isize = @intFromFloat(std.math.floor(bottom_bound / cell_size));
+    const vertical_cells = bottom_bound_cell - top_bound_cell;
 
-    for (0..y_cell_count + 2) |y| {
-        for (0..x_cell_count + 2) |x| {
+    var y: isize = top_bound_cell - 1; //right_boung_cell - 1;
+    while (y <= bottom_bound_cell + 1) : (y += 1) {
+        var x: isize = left_bound_cell - 1; //left_bound_cell - 1;
+        while (x <= right_bound_cell + 1) : (x += 1) {
+            const float_x: f32 = @floatFromInt(x);
+            const float_y: f32 = @floatFromInt(y);
+
             var cell_rec = util.Rect{
-                .min_x = @floatFromInt(start_x + (x * cell_size)),
-                .min_y = @floatFromInt(start_y + (y * cell_size)),
-                .max_x = @floatFromInt(start_x + ((x + 1) * cell_size)),
-                .max_y = @floatFromInt(start_y + ((y + 1) * cell_size)),
+                .min_x = (float_x * cell_size),
+                .min_y = (float_y * cell_size),
+                .max_x = ((float_x + 1) * cell_size),
+                .max_y = ((float_y + 1) * cell_size),
             };
-            cell_rec.min_x -= cell_size;
-            cell_rec.min_y -= cell_size;
-            cell_rec.max_x -= cell_size;
-            cell_rec.max_y -= cell_size;
-            cell_rec.drawLines(1, util.theme.current_theme.grid_color);
+
+            cell_rec.translate(half_x, half_y)
+                .translate(-view_offset.x, -view_offset.y)
+                .drawLines(1, util.theme.current_theme.grid_color);
         }
+    }
+
+    // objects
+    for (points) |point| {
+        const within_horizontal = point.x >= @as(f32, @floatFromInt(left_bound_cell)) and point.x <= @as(f32, @floatFromInt(right_bound_cell));
+        const within_vertical = point.y >= @as(f32, @floatFromInt(top_bound_cell)) and point.y <= @as(f32, @floatFromInt(bottom_bound_cell));
+        if (!within_horizontal or !within_vertical) {
+            continue;
+        }
+
+        const percent_x: f32 = (point.x - @as(f32, @floatFromInt(left_bound_cell))) / @as(f32, @floatFromInt(horizontal_cells));
+        const percent_y: f32 = (point.y - @as(f32, @floatFromInt(top_bound_cell))) / @as(f32, @floatFromInt(vertical_cells));
+
+        const point_x: f32 = std.math.lerp(@as(f32, @floatFromInt(left_bound_cell)), @as(f32, @floatFromInt(right_bound_cell)), percent_x) * cell_size;
+        const point_y: f32 = std.math.lerp(@as(f32, @floatFromInt(top_bound_cell)), @as(f32, @floatFromInt(bottom_bound_cell)), percent_y) * cell_size;
+
+        raylib.DrawCircle(
+            @intFromFloat(point_x - view_offset.x + half_x),
+            @intFromFloat(point_y - view_offset.y + half_y),
+            5,
+            raylib.RED,
+        );
     }
 
     // draw topbar over
@@ -67,4 +109,21 @@ pub fn workspace(rec: util.Rect) void {
         0.0,
         util.theme.current_theme.main_text_color,
     );
+
+    if (raylib.IsKeyDown(raylib.KEY_W)) {
+        view_offset.y -= 1.0;
+    }
+    if (raylib.IsKeyDown(raylib.KEY_S)) {
+        view_offset.y += 1.0;
+    }
+    if (raylib.IsKeyDown(raylib.KEY_A)) {
+        view_offset.x -= 1.0;
+    }
+    if (raylib.IsKeyDown(raylib.KEY_D)) {
+        view_offset.x += 1.0;
+    }
+    const dir = raylib.GetMouseWheelMove();
+    if (dir != 0) {
+        zoom = std.math.clamp(zoom + (dir * 0.1), 0.1, 3.0);
+    }
 }

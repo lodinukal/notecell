@@ -229,6 +229,15 @@ pub const Rect = struct {
     pub inline fn height(self: Rect) f32 {
         return self.max_y - self.min_y;
     }
+
+    pub inline fn translate(self: Rect, x: f32, y: f32) Rect {
+        return Rect{
+            .min_x = self.min_x + x,
+            .min_y = self.min_y + y,
+            .max_x = self.max_x + x,
+            .max_y = self.max_y + y,
+        };
+    }
 };
 
 pub const Side = enum {
