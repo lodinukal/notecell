@@ -84,18 +84,18 @@ pub const Rect = struct {
 
     pub inline fn getLeft(self: Rect, amount: f32) Rect {
         return Rect{
-            .min_x = @max(self.min_x, self.max_x + amount),
+            .min_x = self.min_x,
             .min_y = self.min_y,
-            .max_x = self.max_x,
+            .max_x = @min(self.max_x, self.min_x + amount),
             .max_y = self.max_y,
         };
     }
 
     pub inline fn getRight(self: Rect, amount: f32) Rect {
         return Rect{
-            .min_x = self.min_x,
+            .min_x = @max(self.min_x, self.max_x - amount),
             .min_y = self.min_y,
-            .max_x = @min(self.max_x, self.min_x - amount),
+            .max_x = self.max_x,
             .max_y = self.max_y,
         };
     }
@@ -185,8 +185,38 @@ pub const Rect = struct {
         raylib.DrawRectangleRec(self.toRaylib(), color);
     }
 
-    pub inline fn drawLines(self: Rect, thickness: f32, color: raylib.Color) void {
-        raylib.DrawRectangleLinesEx(self.toRaylib(), thickness, color);
+    pub const InsetMode = enum {
+        inner,
+        outer,
+    };
+    pub inline fn drawLines(self: Rect, thickness: f32, color: raylib.Color, inset: InsetMode) void {
+        var modified_rec = switch (inset) {
+            .inner => self,
+            .outer => self.extendAll(thickness),
+        };
+        raylib.DrawRectangleLinesEx(modified_rec.toRaylib(), thickness, color);
+    }
+
+    pub inline fn drawRoundedLines(self: Rect, thickness: f32, color: raylib.Color, inset: InsetMode) void {
+        var modified_rec = switch (inset) {
+            .inner => self,
+            .outer => self.extendAll(thickness),
+        };
+        raylib.DrawRectangleRoundedLines(modified_rec.toRaylib(), 0.2, 3, thickness, color);
+    }
+
+    pub inline fn drawText(self: Rect, font: raylib.Font, text: []const u8, spacing: f32, color: raylib.Color) void {
+        raylib.DrawTextEx(
+            font,
+            text.ptr,
+            .{
+                .x = self.min_x,
+                .y = self.min_y,
+            },
+            self.height(),
+            spacing,
+            color,
+        );
     }
 
     pub fn mouseWithin(self: Rect) bool {

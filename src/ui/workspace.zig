@@ -8,10 +8,15 @@ var topbar_resizer = util.Resizer.usingSides(.{
     .bottom = true,
 });
 
-var zoom: f32 = 1.0;
-var view_offset: raylib.Vector2 = .{ .x = 0.0, .y = 0.0 };
+var cam: raylib.Camera2D = .{
+    .zoom = 1,
+    .offset = .{ .x = 0, .y = 0 },
+    .rotation = 0,
+};
+var prev_mouse_pos: ?raylib.Vector2 = null;
 
-var points: [5]raylib.Vector2 = .{
+var points: [6]raylib.Vector2 = .{
+    .{ .x = 0.0, .y = 0.0 },
     .{ .x = 1.0, .y = 1.0 },
     .{ .x = 2.0, .y = 1.0 },
     .{ .x = 2.0, .y = 2.0 },
@@ -19,111 +24,129 @@ var points: [5]raylib.Vector2 = .{
     .{ .x = 4.0, .y = 1.0 },
 };
 
-pub fn workspace(rec: util.Rect) void {
-    var _rec = rec;
-    const topbar_rec = _rec.cutTop(topbar_height);
+pub fn workspace(rec: util.Rect, block_inputs: bool) void {
+    var rest_of_viewport = rec;
+    const topbar_rec = rest_of_viewport.cutTop(topbar_height);
 
-    // if (topbar_resizer.with(topbar_rec)) {
-    //     const full_displacement = topbar_height + topbar_resizer.sides.bottom.?;
-    //     topbar_height = std.math.clamp(topbar_height + topbar_resizer.sides.bottom.?, 30, 90);
-    //     topbar_resizer.displace(.bottom, full_displacement - topbar_height);
-    // }
-    var rest_of_viewport = _rec;
+    const view_x: f32 = rest_of_viewport.width();
+    const view_y: f32 = rest_of_viewport.height();
+    const view_half_x: f32 = view_x / 2;
+    const view_half_y: f32 = view_y / 2;
+    cam.offset.x = view_half_x;
+    cam.offset.y = view_half_y;
 
-    const cell_size: f32 = 100 / zoom;
+    {
+        raylib.BeginMode2D(cam);
+        defer raylib.EndMode2D();
 
-    const half_x: f32 = rest_of_viewport.width() / 2;
-    const half_y: f32 = rest_of_viewport.height() / 2;
+        const grid_x = std.math.ceil((cam.target.x) / 100) * 100;
+        const grid_y = std.math.ceil((cam.target.y) / 100) * 100;
 
-    const center_x = view_offset.x;
-    const center_y = view_offset.y;
+        const rounded_zoom = std.math.ceil(1 / cam.zoom / 100) * 100;
 
-    const left_bound = center_x - (half_x * zoom);
-    const right_bound = center_x + (half_x * zoom);
-    const top_bound = center_y - (half_y * zoom);
-    const bottom_bound = center_y + (half_y * zoom);
+        const left_bound = std.math.ceil((grid_x - view_half_x * rounded_zoom) / 100) * 100;
+        const right_bound = std.math.ceil((grid_x + view_half_x * rounded_zoom) / 100) * 100;
+        const top_bound = std.math.ceil((grid_y - view_half_y * rounded_zoom) / 100) * 100;
+        const bottom_bound = std.math.ceil((grid_y + view_half_y * rounded_zoom) / 100) * 100;
 
-    const left_bound_cell: isize = @intFromFloat(std.math.floor(left_bound / cell_size));
-    const right_bound_cell: isize = @intFromFloat(std.math.floor(right_bound / cell_size));
-    const horizontal_cells = right_bound_cell - left_bound_cell;
-
-    const top_bound_cell: isize = @intFromFloat(std.math.floor(top_bound / cell_size));
-    const bottom_bound_cell: isize = @intFromFloat(std.math.floor(bottom_bound / cell_size));
-    const vertical_cells = bottom_bound_cell - top_bound_cell;
-
-    var y: isize = top_bound_cell - 1; //right_boung_cell - 1;
-    while (y <= bottom_bound_cell + 1) : (y += 1) {
-        var x: isize = left_bound_cell - 1; //left_bound_cell - 1;
-        while (x <= right_bound_cell + 1) : (x += 1) {
-            const float_x: f32 = @floatFromInt(x);
-            const float_y: f32 = @floatFromInt(y);
-
-            var cell_rec = util.Rect{
-                .min_x = (float_x * cell_size),
-                .min_y = (float_y * cell_size),
-                .max_x = ((float_x + 1) * cell_size),
-                .max_y = ((float_y + 1) * cell_size),
-            };
-
-            cell_rec.translate(half_x, half_y)
-                .translate(-view_offset.x, -view_offset.y)
-                .drawLines(1, util.theme.current_theme.grid_color);
-        }
-    }
-
-    // objects
-    for (points) |point| {
-        const within_horizontal = point.x >= @as(f32, @floatFromInt(left_bound_cell)) and point.x <= @as(f32, @floatFromInt(right_bound_cell));
-        const within_vertical = point.y >= @as(f32, @floatFromInt(top_bound_cell)) and point.y <= @as(f32, @floatFromInt(bottom_bound_cell));
-        if (!within_horizontal or !within_vertical) {
-            continue;
+        var x = left_bound;
+        while (x <= right_bound) : (x += 100) {
+            raylib.DrawLineEx(
+                .{ .x = x, .y = top_bound },
+                .{ .x = x, .y = bottom_bound },
+                3 / cam.zoom,
+                util.theme.current_theme.grid_color,
+            );
         }
 
-        const percent_x: f32 = (point.x - @as(f32, @floatFromInt(left_bound_cell))) / @as(f32, @floatFromInt(horizontal_cells));
-        const percent_y: f32 = (point.y - @as(f32, @floatFromInt(top_bound_cell))) / @as(f32, @floatFromInt(vertical_cells));
+        var y = top_bound;
+        while (y <= bottom_bound) : (y += 100) {
+            raylib.DrawLineEx(
+                .{ .x = left_bound, .y = y },
+                .{ .x = right_bound, .y = y },
+                3 / cam.zoom,
+                util.theme.current_theme.grid_color,
+            );
+        }
 
-        const point_x: f32 = std.math.lerp(@as(f32, @floatFromInt(left_bound_cell)), @as(f32, @floatFromInt(right_bound_cell)), percent_x) * cell_size;
-        const point_y: f32 = std.math.lerp(@as(f32, @floatFromInt(top_bound_cell)), @as(f32, @floatFromInt(bottom_bound_cell)), percent_y) * cell_size;
+        // objects
+        for (points, 0..) |point, idx| {
+            const converted_point = raylib.Vector2Multiply(point, .{
+                .x = 50,
+                .y = 50,
+            });
+            const within_horizontal = converted_point.x >= left_bound and converted_point.x <= right_bound;
+            const within_vertical = converted_point.y >= top_bound and converted_point.y <= bottom_bound;
+            if (!within_horizontal or !within_vertical) {
+                continue;
+            }
 
-        raylib.DrawCircle(
-            @intFromFloat(point_x - view_offset.x + half_x),
-            @intFromFloat(point_y - view_offset.y + half_y),
-            5,
-            raylib.RED,
-        );
+            raylib.DrawCircle(
+                @intFromFloat(converted_point.x),
+                @intFromFloat(converted_point.y),
+                5,
+                if (idx == 0) raylib.RED else raylib.BLUE,
+            );
+        }
     }
 
     // draw topbar over
-    topbar_rec.draw(util.theme.current_theme.foreground_color);
+    {
+        topbar_rec.draw(util.theme.current_theme.foreground_color);
+        topbar_rec.drawLines(2, util.theme.current_theme.main_outline_color, .outer);
 
-    var text_rect = topbar_rec.extendAll(-10);
+        var text_rect = topbar_rec.extendAll(-10);
+        text_rect.drawText(
+            util.theme.current_theme.bold_font.loaded.?,
+            "WORKSPACE",
+            0.0,
+            util.theme.current_theme.main_text_color,
+        );
+    }
 
-    raylib.DrawTextEx(
-        util.theme.current_theme.bold_font.loaded.?,
-        "WORKSPACE",
-        .{
-            .x = text_rect.min_x,
-            .y = text_rect.min_y,
-        },
-        text_rect.height(),
-        0.0,
-        util.theme.current_theme.main_text_color,
-    );
+    // position element
+    {
+        var text_buffer: [256]u8 = .{0} ** 256;
+        var fba = std.heap.FixedBufferAllocator.init(&text_buffer);
+        const text_allocator = fba.allocator();
 
-    if (raylib.IsKeyDown(raylib.KEY_W)) {
-        view_offset.y -= 1.0;
+        var markers = rest_of_viewport.extendAll(-10);
+        var marker = markers.getRight(120).getBottom(35);
+        const text = std.fmt.allocPrint(text_allocator, "({}, {})", .{
+            @as(isize, @intFromFloat(cam.target.x)),
+            @as(isize, @intFromFloat(cam.target.y)),
+        }) catch "?";
+
+        var text_rec = marker.extendAll(-8);
+        const text_size = raylib.MeasureTextEx(util.theme.current_theme.regular_font.loaded.?, text.ptr, text_rec.height(), 0.0);
+
+        marker = marker.getRight(text_size.x + 16);
+        marker.draw(util.theme.current_theme.foreground_color);
+        marker.drawRoundedLines(2, util.theme.current_theme.secondary_outline_color, .inner);
+
+        marker.extendAll(-8).drawText(
+            util.theme.current_theme.regular_font.loaded.?,
+            text,
+            0.0,
+            util.theme.current_theme.secondary_text_color,
+        );
     }
-    if (raylib.IsKeyDown(raylib.KEY_S)) {
-        view_offset.y += 1.0;
-    }
-    if (raylib.IsKeyDown(raylib.KEY_A)) {
-        view_offset.x -= 1.0;
-    }
-    if (raylib.IsKeyDown(raylib.KEY_D)) {
-        view_offset.x += 1.0;
-    }
-    const dir = raylib.GetMouseWheelMove();
-    if (dir != 0) {
-        zoom = std.math.clamp(zoom + (dir * 0.1), 0.1, 3.0);
+
+    if (!block_inputs) {
+        if (prev_mouse_pos) |pmp| {
+            const this_pos = raylib.GetMousePosition();
+            const delta = raylib.Vector2Subtract(pmp, this_pos);
+            if (raylib.IsMouseButtonDown(raylib.MOUSE_BUTTON_LEFT)) {
+                cam.target = raylib.GetScreenToWorld2D(raylib.Vector2Add(cam.offset, delta), cam);
+            }
+        }
+        prev_mouse_pos = raylib.GetMousePosition();
+
+        const dir = raylib.GetMouseWheelMove();
+        if (dir != 0) {
+            cam.zoom = std.math.clamp(cam.zoom + (dir * 0.1), 0.1, 3.0);
+        }
+    } else {
+        prev_mouse_pos = null;
     }
 }

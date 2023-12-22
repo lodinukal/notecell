@@ -27,6 +27,8 @@ pub const Style = struct {
     secondary_text_color: raylib.Color = rgb(255, 255, 255),
     main_text_color_dim: raylib.Color = rgb(255, 255, 255),
     grid_color: raylib.Color = rgb(255, 255, 255),
+    main_outline_color: raylib.Color = rgb(255, 255, 255),
+    secondary_outline_color: raylib.Color = rgb(255, 255, 255),
 };
 
 pub var dark = Style{
@@ -42,7 +44,9 @@ pub var dark = Style{
     .focus_text_color = rgb(250, 250, 250),
     .secondary_text_color = rgb(150, 150, 150),
     .main_text_color_dim = rgb(120, 120, 120),
-    .grid_color = util.fromHex(0x33333388),
+    .grid_color = util.fromHex(0x33333355),
+    .main_outline_color = rgb(50, 50, 50),
+    .secondary_outline_color = rgb(40, 40, 40),
 };
 pub var light = Style{};
 

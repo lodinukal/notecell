@@ -7,7 +7,7 @@ var toggled: bool = false;
 pub fn app(rec: util.Rect) void {
     rec.draw(util.theme.current_theme.background_color);
     if (raylib.IsKeyPressed(raylib.KEY_ESCAPE)) toggled = !toggled;
-    workspace.workspace(rec);
+    workspace.workspace(rec, toggled);
     if (toggled) {
         // escape menu should be drawn here
         rec.draw(util.theme.current_theme.escape_color);
