@@ -1,10 +1,13 @@
 const std = @import("std");
 
-const util = @import("util.zig");
+const util = @import("../util.zig");
 const raylib = util.raylib;
 
+const textui = @import("text.zig");
+const interaction = @import("interaction.zig");
+
 var topbar_height: f32 = 45.0;
-var topbar_resizer = util.Resizer.usingSides(.{
+var topbar_resizer = interaction.Resizer.usingSides(.{
     .bottom = true,
 });
 
@@ -16,13 +19,17 @@ var cam: raylib.Camera2D = .{
 var prev_mouse_pos: ?raylib.Vector2 = null;
 var captured_mouse: bool = false;
 
-var points: [6]raylib.Vector2 = .{
-    .{ .x = 0.0, .y = 0.0 },
-    .{ .x = 1.0, .y = 1.0 },
-    .{ .x = 2.0, .y = 1.0 },
-    .{ .x = 2.0, .y = 2.0 },
-    .{ .x = 3.0, .y = 2.0 },
-    .{ .x = 4.0, .y = 1.0 },
+var points = std.ArrayList(raylib.Vector2).init(std.heap.page_allocator);
+
+var test_window_resizer = interaction.WindowResizer{
+    .rect = .{
+        .min_x = 100,
+        .min_y = 100,
+        .max_x = 300,
+        .max_y = 200,
+    },
+    .min_size = .{ .x = 100, .y = 100 },
+    .max_size = .{ .x = 500, .y = 500 },
 };
 
 pub fn workspace(rec: util.Rect, block_inputs: bool) void {
@@ -71,10 +78,10 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         }
 
         // objects
-        for (points, 0..) |point, idx| {
+        for (points.items, 0..) |point, idx| {
             const converted_point = raylib.Vector2Multiply(point, .{
-                .x = 50,
-                .y = 50,
+                .x = 1,
+                .y = 1,
             });
             const within_horizontal = converted_point.x >= left_bound and converted_point.x <= right_bound;
             const within_vertical = converted_point.y >= top_bound and converted_point.y <= bottom_bound;
@@ -82,11 +89,34 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
                 continue;
             }
 
+            const molor_map = [_]raylib.Color{
+                raylib.RED,
+                raylib.BLUE,
+                raylib.GREEN,
+                raylib.YELLOW,
+                raylib.PURPLE,
+                raylib.ORANGE,
+                raylib.PINK,
+                raylib.BROWN,
+                raylib.MAGENTA,
+                raylib.LIME,
+                raylib.GOLD,
+                raylib.SKYBLUE,
+                raylib.BEIGE,
+                raylib.MAROON,
+                raylib.DARKGREEN,
+                raylib.DARKBLUE,
+                raylib.DARKPURPLE,
+                raylib.DARKBROWN,
+                raylib.GRAY,
+                raylib.DARKGRAY,
+            };
+
             raylib.DrawCircle(
                 @intFromFloat(converted_point.x),
                 @intFromFloat(converted_point.y),
                 5,
-                if (idx == 0) raylib.RED else raylib.BLUE,
+                molor_map[idx % molor_map.len],
             );
         }
     }
@@ -96,13 +126,26 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         topbar_rec.draw(util.theme.current_theme.foreground_color);
         topbar_rec.drawLines(2, util.theme.current_theme.main_outline_color, .outer);
 
+        // if (topbar_resizer.with(topbar_rec)) {
+        //     const unclamped_height = topbar_height + topbar_resizer.sides.bottom.?;
+        //     topbar_height = std.math.clamp(unclamped_height, 45, 60);
+        //     topbar_resizer.displace(.bottom, unclamped_height - topbar_height);
+        // }
+
         var text_rect = topbar_rec.extendAll(-10);
         text_rect.drawText(
             util.theme.current_theme.bold_font.loaded.?,
-            "WORKSPACE",
+            "GRID",
             0.0,
             util.theme.current_theme.main_text_color,
         );
+
+        const button_rec = topbar_rec.extendAll(-8).getRight(50);
+        if (interaction.button(button_rec, .primary) == .pressed) {
+            for (points.items, 0..) |point, idx| {
+                points.items[idx] = raylib.Vector2Add(point, .{ .x = 1, .y = 1 });
+            }
+        }
     }
 
     // position element
@@ -112,37 +155,40 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         const text_allocator = fba.allocator();
 
         var markers = rest_of_viewport.extendAll(-10);
-        var marker = markers.getRight(120).getBottom(35);
+        const marker = markers.getRight(120).getBottom(35);
         const text = std.fmt.allocPrint(text_allocator, "({}, {})", .{
             @as(isize, @intFromFloat(cam.target.x)),
             @as(isize, @intFromFloat(cam.target.y)),
         }) catch "?";
 
-        var text_rec = marker.extendAll(-8);
-        const text_size = raylib.MeasureTextEx(util.theme.current_theme.regular_font.loaded.?, text.ptr, text_rec.height(), 0.0);
-
-        marker = marker.getRight(text_size.x + 16);
-        marker.draw(util.theme.current_theme.foreground_color);
-        marker.drawRoundedLines(2, util.theme.current_theme.secondary_outline_color, .inner);
-
-        marker.extendAll(-8).drawText(
-            util.theme.current_theme.regular_font.loaded.?,
+        if (textui.textButtonExpanding(
+            marker,
             text,
-            0.0,
+            util.theme.current_theme.regular_font.loaded.?,
+            .right,
             util.theme.current_theme.secondary_text_color,
-        );
+            .primary,
+        ) == .pressed) {
+            std.log.warn("pressed", .{});
+        }
     }
 
-    if (!block_inputs) {
+    {
+        if (block_inputs) test_window_resizer.reset();
+        _ = test_window_resizer.with();
+        test_window_resizer.rect.draw(util.theme.current_theme.foreground_color);
+    }
+
+    if (!block_inputs and !interaction.isMouseProcessed()) {
         if (prev_mouse_pos) |pmp| {
             const this_pos = raylib.GetMousePosition();
             const delta = raylib.Vector2Subtract(pmp, this_pos);
-            if (raylib.IsMouseButtonPressed(raylib.MOUSE_BUTTON_LEFT) and rest_of_viewport.mouseWithin()) {
+            if (rest_of_viewport.mouseWithin() and interaction.mouseState(.pressed, raylib.MOUSE_BUTTON_MIDDLE)) {
                 captured_mouse = true;
             }
             if (captured_mouse) {
                 cam.target = raylib.GetScreenToWorld2D(raylib.Vector2Add(cam.offset, delta), cam);
-                if (raylib.IsMouseButtonReleased(raylib.MOUSE_BUTTON_LEFT)) {
+                if (interaction.mouseState(.released, raylib.MOUSE_BUTTON_MIDDLE)) {
                     captured_mouse = false;
                 }
             }
@@ -152,6 +198,12 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         const dir = raylib.GetMouseWheelMove();
         if (dir != 0) {
             cam.zoom = std.math.clamp(cam.zoom + (dir * 0.1), 0.1, 3.0);
+        }
+
+        const mouse_pos = raylib.GetMousePosition();
+        if (rest_of_viewport.mouseHold()) {
+            points.append(raylib.GetScreenToWorld2D(mouse_pos, cam)) catch {};
+            std.debug.print("points: {}\n", .{points.items.len});
         }
     } else {
         captured_mouse = false;

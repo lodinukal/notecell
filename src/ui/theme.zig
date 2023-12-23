@@ -29,6 +29,14 @@ pub const Style = struct {
     grid_color: raylib.Color = rgb(255, 255, 255),
     main_outline_color: raylib.Color = rgb(255, 255, 255),
     secondary_outline_color: raylib.Color = rgb(255, 255, 255),
+    primary_button_color: raylib.Color = rgb(255, 255, 255),
+    primary_button_hover_color: raylib.Color = rgb(255, 255, 255),
+    primary_button_pressed_color: raylib.Color = rgb(255, 255, 255),
+    primary_button_outline_color: raylib.Color = rgb(255, 255, 255),
+    secondary_button_color: raylib.Color = rgb(255, 255, 255),
+    secondary_button_hover_color: raylib.Color = rgb(255, 255, 255),
+    secondary_button_pressed_color: raylib.Color = rgb(255, 255, 255),
+    secondary_button_outline_color: raylib.Color = rgb(255, 255, 255),
 };
 
 pub var dark = Style{
@@ -47,6 +55,14 @@ pub var dark = Style{
     .grid_color = util.fromHex(0x33333355),
     .main_outline_color = rgb(50, 50, 50),
     .secondary_outline_color = rgb(40, 40, 40),
+    .primary_button_color = rgb(45, 45, 45),
+    .primary_button_hover_color = rgb(55, 55, 55),
+    .primary_button_pressed_color = rgb(65, 65, 65),
+    .primary_button_outline_color = rgb(35, 35, 35),
+    .secondary_button_color = rgb(35, 35, 35),
+    .secondary_button_hover_color = rgb(45, 45, 45),
+    .secondary_button_pressed_color = rgb(55, 55, 55),
+    .secondary_button_outline_color = rgb(25, 25, 25),
 };
 pub var light = Style{};
 
