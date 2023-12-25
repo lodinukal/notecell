@@ -20,7 +20,7 @@ pub const Style = struct {
         .name = "./resources/JetBrainsMonoNL-Bold.ttf",
     },
     italic_font: FontSet = .{
-        .name = "./resources/JetBrainsMonoNL-Italic.ttf",
+        .name = "./resources/JetBrainsMonoNL-Light.ttf",
     },
     main_text_color: raylib.Color = rgb(255, 255, 255),
     focus_text_color: raylib.Color = rgb(255, 255, 255),
@@ -52,7 +52,7 @@ pub var dark = Style{
     .focus_text_color = rgb(250, 250, 250),
     .secondary_text_color = rgb(150, 150, 150),
     .main_text_color_dim = rgb(120, 120, 120),
-    .grid_color = util.fromHex(0x33333355),
+    .grid_color = util.fromHex(0x33333333),
     .main_outline_color = rgb(50, 50, 50),
     .secondary_outline_color = rgb(40, 40, 40),
     .primary_button_color = rgb(45, 45, 45),

@@ -40,6 +40,12 @@ pub fn build(b: *std.Build) void {
     const raylib = raylib_src.addRaylib(b, target, optimize, .{});
     raylib.linkLibC();
 
+    const yaml = b.dependency("yaml", .{
+        .target = target,
+        .optimize = std.builtin.OptimizeMode.ReleaseSafe,
+    });
+    exe.addModule("yaml", yaml.module("yaml"));
+
     exe.linkLibrary(lib);
     exe.linkLibrary(raylib);
     exe.addIncludePath(.{ .path = "./raylib-5.0/src" });

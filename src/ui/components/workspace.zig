@@ -1,5 +1,10 @@
 const std = @import("std");
 
+const app = @import("../app.zig");
+
+const Project = @import("../../store/store.zig").Project;
+const Scene = @import("../../store/store.zig").Scene;
+
 const util = @import("../util.zig");
 const raylib = util.raylib;
 
@@ -19,19 +24,6 @@ var cam: raylib.Camera2D = .{
 var prev_mouse_pos: ?raylib.Vector2 = null;
 var captured_mouse: bool = false;
 
-var points = std.ArrayList(raylib.Vector2).init(std.heap.page_allocator);
-
-var test_window_resizer = interaction.WindowResizer{
-    .rect = .{
-        .min_x = 100,
-        .min_y = 100,
-        .max_x = 300,
-        .max_y = 200,
-    },
-    .min_size = .{ .x = 100, .y = 100 },
-    .max_size = .{ .x = 500, .y = 500 },
-};
-
 pub fn workspace(rec: util.Rect, block_inputs: bool) void {
     var rest_of_viewport = rec;
     const topbar_rec = rest_of_viewport.cutTop(topbar_height);
@@ -43,22 +35,34 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
     cam.offset.x = view_half_x;
     cam.offset.y = view_half_y;
 
-    {
+    var current_scene: ?*Scene = if (app.using_project) |proj|
+        proj.current_loaded_scene
+    else
+        null;
+
+    if (current_scene) |scene| {
         raylib.BeginMode2D(cam);
         defer raylib.EndMode2D();
 
-        const grid_x = std.math.ceil((cam.target.x) / 100) * 100;
-        const grid_y = std.math.ceil((cam.target.y) / 100) * 100;
+        const cell_gap: f32 = blk: {
+            // make keep at 20 by default
+            // but as cam.zoom increases, decrease the cell gap
+            if (cam.zoom >= 1.5) break :blk 10;
+            break :blk 20;
+        };
 
-        const rounded_zoom = std.math.ceil(1 / cam.zoom / 100) * 100;
+        const grid_x = std.math.ceil((cam.target.x) / cell_gap) * cell_gap;
+        const grid_y = std.math.ceil((cam.target.y) / cell_gap) * cell_gap;
 
-        const left_bound = std.math.ceil((grid_x - view_half_x * rounded_zoom) / 100) * 100;
-        const right_bound = std.math.ceil((grid_x + view_half_x * rounded_zoom) / 100) * 100;
-        const top_bound = std.math.ceil((grid_y - view_half_y * rounded_zoom) / 100) * 100;
-        const bottom_bound = std.math.ceil((grid_y + view_half_y * rounded_zoom) / 100) * 100;
+        const rounded_zoom = std.math.ceil(1 / cam.zoom / cell_gap) * cell_gap;
+
+        const left_bound = std.math.ceil((grid_x - view_half_x * rounded_zoom) / cell_gap) * cell_gap;
+        const right_bound = std.math.ceil((grid_x + view_half_x * rounded_zoom) / cell_gap) * cell_gap;
+        const top_bound = std.math.ceil((grid_y - view_half_y * rounded_zoom) / cell_gap) * cell_gap;
+        const bottom_bound = std.math.ceil((grid_y + view_half_y * rounded_zoom) / cell_gap) * cell_gap;
 
         var x = left_bound;
-        while (x <= right_bound) : (x += 100) {
+        while (x <= right_bound) : (x += cell_gap) {
             raylib.DrawLineEx(
                 .{ .x = x, .y = top_bound },
                 .{ .x = x, .y = bottom_bound },
@@ -68,7 +72,7 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         }
 
         var y = top_bound;
-        while (y <= bottom_bound) : (y += 100) {
+        while (y <= bottom_bound) : (y += cell_gap) {
             raylib.DrawLineEx(
                 .{ .x = left_bound, .y = y },
                 .{ .x = right_bound, .y = y },
@@ -77,48 +81,42 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
             );
         }
 
-        // objects
-        for (points.items, 0..) |point, idx| {
-            const converted_point = raylib.Vector2Multiply(point, .{
-                .x = 1,
-                .y = 1,
+        for (scene.cards.items) |card| {
+            raylib.DrawRectangleRec(.{
+                .x = card.rect.min_x,
+                .y = card.rect.min_y,
+                .width = card.rect.width(),
+                .height = card.rect.height(),
+            }, .{
+                .r = card.color[0],
+                .g = card.color[1],
+                .b = card.color[2],
+                .a = card.color[3],
             });
-            const within_horizontal = converted_point.x >= left_bound and converted_point.x <= right_bound;
-            const within_vertical = converted_point.y >= top_bound and converted_point.y <= bottom_bound;
-            if (!within_horizontal or !within_vertical) {
-                continue;
-            }
-
-            const molor_map = [_]raylib.Color{
-                raylib.RED,
-                raylib.BLUE,
-                raylib.GREEN,
-                raylib.YELLOW,
-                raylib.PURPLE,
-                raylib.ORANGE,
-                raylib.PINK,
-                raylib.BROWN,
-                raylib.MAGENTA,
-                raylib.LIME,
-                raylib.GOLD,
-                raylib.SKYBLUE,
-                raylib.BEIGE,
-                raylib.MAROON,
-                raylib.DARKGREEN,
-                raylib.DARKBLUE,
-                raylib.DARKPURPLE,
-                raylib.DARKBROWN,
-                raylib.GRAY,
-                raylib.DARKGRAY,
-            };
-
-            raylib.DrawCircle(
-                @intFromFloat(converted_point.x),
-                @intFromFloat(converted_point.y),
-                5,
-                molor_map[idx % molor_map.len],
-            );
         }
+
+        // objects
+        // for (points.items, 0..) |point, idx| {
+        //     _ = idx;
+
+        //     const converted_point = raylib.Vector2Multiply(point, .{
+        //         .x = 1,
+        //         .y = 1,
+        //     });
+        //     const within_horizontal = converted_point.x >= left_bound and converted_point.x <= right_bound;
+        //     const within_vertical = converted_point.y >= top_bound and converted_point.y <= bottom_bound;
+        //     if (!within_horizontal or !within_vertical) {
+        //         continue;
+        //     }
+        // }
+    } else {
+        rest_of_viewport.centered(120, 30).drawText(
+            util.theme.current_theme.bold_font.loaded.?,
+            "No project open ;-;",
+            0.0,
+            util.theme.current_theme.main_text_color,
+            .center,
+        );
     }
 
     // draw topbar over
@@ -132,24 +130,27 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         //     topbar_resizer.displace(.bottom, unclamped_height - topbar_height);
         // }
 
+        var text_buffer: [256]u8 = .{0} ** 256;
+        var fba = std.heap.FixedBufferAllocator.init(&text_buffer);
+        const text_allocator = fba.allocator();
+
         var text_rect = topbar_rec.extendAll(-10);
         text_rect.drawText(
             util.theme.current_theme.bold_font.loaded.?,
-            "GRID",
+            std.fmt.allocPrint(text_allocator, "{}", .{cam.zoom}) catch "?",
             0.0,
             util.theme.current_theme.main_text_color,
+            .left,
         );
 
         const button_rec = topbar_rec.extendAll(-8).getRight(50);
-        if (interaction.button(button_rec, .primary) == .pressed) {
-            for (points.items, 0..) |point, idx| {
-                points.items[idx] = raylib.Vector2Add(point, .{ .x = 1, .y = 1 });
-            }
-        }
+        if (interaction.button(button_rec, .primary) == .pressed) {}
     }
 
     // position element
-    {
+    if (current_scene) |scene| {
+        _ = scene; // autofix
+
         var text_buffer: [256]u8 = .{0} ** 256;
         var fba = std.heap.FixedBufferAllocator.init(&text_buffer);
         const text_allocator = fba.allocator();
@@ -173,13 +174,7 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         }
     }
 
-    {
-        if (block_inputs) test_window_resizer.reset();
-        _ = test_window_resizer.with();
-        test_window_resizer.rect.draw(util.theme.current_theme.foreground_color);
-    }
-
-    if (!block_inputs and !interaction.isMouseProcessed()) {
+    if (!block_inputs and !interaction.isMouseProcessed() and current_scene != null) {
         if (prev_mouse_pos) |pmp| {
             const this_pos = raylib.GetMousePosition();
             const delta = raylib.Vector2Subtract(pmp, this_pos);
@@ -197,13 +192,28 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
 
         const dir = raylib.GetMouseWheelMove();
         if (dir != 0) {
-            cam.zoom = std.math.clamp(cam.zoom + (dir * 0.1), 0.1, 3.0);
+            cam.zoom = std.math.clamp(cam.zoom + (dir * 0.1), 0.5, 2.0);
         }
 
         const mouse_pos = raylib.GetMousePosition();
-        if (rest_of_viewport.mouseHold()) {
-            points.append(raylib.GetScreenToWorld2D(mouse_pos, cam)) catch {};
-            std.debug.print("points: {}\n", .{points.items.len});
+        const world_pos = raylib.GetScreenToWorld2D(mouse_pos, cam);
+
+        if (rest_of_viewport.mouseClick()) {
+            current_scene.?.cards.append(.{
+                .color = .{
+                    @intCast(raylib.GetRandomValue(1, 255)),
+                    @intCast(raylib.GetRandomValue(1, 255)),
+                    @intCast(raylib.GetRandomValue(1, 255)),
+                    255,
+                },
+                .name = "a card",
+                .rect = .{
+                    .min_x = world_pos.x,
+                    .min_y = world_pos.y,
+                    .max_x = world_pos.x + 50,
+                    .max_y = world_pos.y + 50,
+                },
+            }) catch {};
         }
     } else {
         captured_mouse = false;

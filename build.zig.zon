@@ -39,6 +39,10 @@
         //    // computed.
         //    .path = "foo",
         //},
+        .yaml = .{
+            .url = "https://github.com/kubkon/zig-yaml/archive/1ed4925bed911b73a189526a6ad82bd8c5c2079a.tar.gz",
+            .hash = "1220f56d186377820d7ad62ee03987acdd53bc24da83e8f6dff571bc7343f789f69a",
+        },
     },
 
     // Specifies the set of files and directories that are included in this package.

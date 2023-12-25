@@ -210,15 +210,42 @@ pub const Rect = struct {
         raylib.DrawRectangleRoundedLines(modified_rec.toRaylib(), 0.2, 3, thickness, color);
     }
 
-    pub inline fn drawText(self: Rect, font: raylib.Font, text: []const u8, spacing: f32, color: raylib.Color) void {
+    pub inline fn measureSize(rec: Rect, text: []const u8, font: raylib.Font, alignment: HorizontalAlignment) Rect {
+        var text_rec = rec;
+        const text_size = raylib.MeasureTextEx(font, text.ptr, text_rec.height(), 0.0);
+        switch (alignment) {
+            .left => {
+                text_rec.max_x = text_rec.min_x + text_size.x;
+            },
+            .center => {
+                text_rec.min_x = text_rec.min_x + (text_rec.width() - text_size.x) / 2;
+                text_rec.max_x = text_rec.min_x + text_size.x;
+            },
+            .right => {
+                text_rec.min_x = text_rec.max_x - text_size.x;
+            },
+        }
+        return text_rec;
+    }
+
+    pub inline fn drawText(
+        self: Rect,
+        font: raylib.Font,
+        text: []const u8,
+        spacing: f32,
+        color: raylib.Color,
+        alignment: HorizontalAlignment,
+    ) void {
+        const text_rec = self.measureSize(text, font, alignment);
+
         raylib.DrawTextEx(
             font,
             text.ptr,
             .{
-                .x = self.min_x,
-                .y = self.min_y,
+                .x = text_rec.min_x,
+                .y = text_rec.min_y,
             },
-            self.height(),
+            text_rec.height(),
             spacing,
             color,
         );
@@ -281,6 +308,21 @@ pub const Rect = struct {
             .max_y = self.max_y + y,
         };
     }
+
+    pub inline fn centered(self: Rect, size_x: f32, size_y: f32) Rect {
+        return Rect{
+            .min_x = self.min_x + (self.width() - size_x) / 2,
+            .min_y = self.min_y + (self.height() - size_y) / 2,
+            .max_x = self.min_x + (self.width() + size_x) / 2,
+            .max_y = self.min_y + (self.height() + size_y) / 2,
+        };
+    }
+};
+
+pub const HorizontalAlignment = enum {
+    left,
+    center,
+    right,
 };
 
 pub const Area = enum {

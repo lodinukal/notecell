@@ -1,6 +1,8 @@
 const util = @import("util.zig");
 const raylib = util.raylib;
 
+const Project = @import("../store/store.zig").Project;
+
 const workspace = @import("components/workspace.zig");
 const interaction = @import("components/interaction.zig");
 
@@ -16,7 +18,9 @@ pub fn app(rec: util.Rect) void {
     }
 }
 
-pub fn start() void {
+pub var using_project: ?*Project = null;
+pub fn start(project: ?*Project) void {
+    using_project = project;
     raylib.SetTargetFPS(144);
     util.theme.setTheme(&util.theme.dark);
 }
