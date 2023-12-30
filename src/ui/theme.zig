@@ -37,6 +37,9 @@ pub const Style = struct {
     secondary_button_hover_color: raylib.Color = rgb(255, 255, 255),
     secondary_button_pressed_color: raylib.Color = rgb(255, 255, 255),
     secondary_button_outline_color: raylib.Color = rgb(255, 255, 255),
+
+    card_color: raylib.Color = rgb(255, 255, 255),
+    card_outline_color: raylib.Color = rgb(255, 255, 255),
 };
 
 pub var dark = Style{
@@ -63,6 +66,9 @@ pub var dark = Style{
     .secondary_button_hover_color = rgb(45, 45, 45),
     .secondary_button_pressed_color = rgb(55, 55, 55),
     .secondary_button_outline_color = rgb(25, 25, 25),
+
+    .card_color = rgb(40, 40, 40),
+    .card_outline_color = rgb(60, 60, 60),
 };
 pub var light = Style{};
 
@@ -77,7 +83,7 @@ pub fn setTheme(theme: *Style) void {
         const font_set: *FontSet = &@field(theme, member_name);
         if (font_set.loaded == null) {
             font_set.loaded = raylib.LoadFont(font_set.name.ptr);
-            raylib.SetTextureFilter(font_set.loaded.?.texture, raylib.TEXTURE_FILTER_BILINEAR);
+            raylib.SetTextureFilter(font_set.loaded.?.texture, raylib.TEXTURE_FILTER_TRILINEAR);
         }
     }
 }

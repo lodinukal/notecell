@@ -184,10 +184,14 @@ pub const Project = struct {
             .read = true,
             .exclusive = true,
         }) catch |err| switch (err) {
-            error.PathAlreadyExists => self.scenes_dir.?.openFile(name, std.fs.File.OpenFlags{
-                .mode = .write_only,
-            }) catch |inner_err| switch (inner_err) {
-                else => return error.SceneUnableToWriteToExisting,
+            error.PathAlreadyExists => blk: {
+                self.scenes_dir.?.deleteFile(name) catch {};
+                break :blk self.scenes_dir.?.createFile(name, std.fs.File.CreateFlags{
+                    .read = true,
+                    .exclusive = true,
+                }) catch |inner_err| switch (inner_err) {
+                    else => return error.SceneUnableToWrite,
+                };
             },
             else => return error.SceneUnableToWrite,
         };
@@ -280,14 +284,14 @@ pub const Scene = struct {
 };
 
 pub const Card = struct {
-    name: []const u8,
+    name: [:0]const u8,
     rect: Area,
-    color: [4]u8,
-    // inner: union(enum) {
-    //     board: Board,
-    //     note: Note,
-    //     column: Column,
-    // },
+    color: ?[4]u8 = null,
+    inner: union(enum) {
+        board: Board,
+        note: Note,
+        column: Column,
+    },
 };
 
 pub const Board = struct {
@@ -296,11 +300,35 @@ pub const Board = struct {
 
 pub const Note = struct {
     allocator: std.mem.Allocator,
-    content: []const u8,
+    content: [:0]const u8,
     formatting: void = {},
 
     pub fn deinit(self: *Note) void {
         self.allocator.free(self.content);
+    }
+
+    pub fn jsonStringify(value: @This(), jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("content");
+        try jws.write(value.content);
+        // try jws.objectField("cards");
+        // try jws.write(value.cards.items);
+        try jws.endObject();
+    }
+
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, source: std.json.Value, options: std.json.ParseOptions) !@This() {
+        _ = options;
+
+        if (source != .object) return error.UnexpectedToken;
+        const content = source.object.get("content") orelse return error.UnexpectedToken;
+        if (content != .string) return error.UnexpectedToken;
+
+        const scene = Note{
+            .allocator = allocator,
+            .content = try allocator.dupeZ(u8, content.string),
+        };
+
+        return scene;
     }
 };
 
@@ -311,14 +339,63 @@ pub const Column = struct {
     pub fn deinit(self: *Column) void {
         self.cards.deinit();
     }
+
+    pub fn jsonStringify(value: @This(), jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("cards");
+        try jws.write(value.cards.items);
+        try jws.endObject();
+    }
+
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, source: std.json.Value, options: std.json.ParseOptions) !@This() {
+        if (source != .object) return error.UnexpectedToken;
+        const cards = source.object.get("cards") orelse return error.UnexpectedToken;
+        if (cards != .array) return error.UnexpectedToken;
+
+        var column = Column{
+            .allocator = allocator,
+            .cards = try std.ArrayList(Card).initCapacity(allocator, cards.array.items.len),
+        };
+
+        var child_options = options;
+        child_options.ignore_unknown_fields = true;
+        for (cards.array.items) |raw_card| {
+            const card = try json.parseFromValue(Card, allocator, raw_card, child_options);
+            column.cards.appendAssumeCapacity(card.value);
+        }
+
+        return column;
+    }
 };
 
 pub const ResourceId = struct {
     allocator: ?std.mem.Allocator,
-    path: []const u8,
+    path: [:0]const u8,
 
     pub fn deinit(self: *ResourceId) void {
         (self.allocator orelse return).free(self.path);
+    }
+
+    pub fn jsonStringify(value: @This(), jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("path");
+        try jws.write(value.path);
+        try jws.endObject();
+    }
+
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, source: std.json.Value, options: std.json.ParseOptions) !@This() {
+        _ = options;
+
+        if (source != .object) return error.UnexpectedToken;
+        const path = source.object.get("path") orelse return error.UnexpectedToken;
+        if (path != .string) return error.UnexpectedToken;
+
+        const resource = ResourceId{
+            .allocator = allocator,
+            .path = try allocator.dupeZ(u8, path.string),
+        };
+
+        return resource;
     }
 };
 

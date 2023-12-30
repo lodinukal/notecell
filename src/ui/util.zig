@@ -256,6 +256,12 @@ pub const Rect = struct {
         return raylib.CheckCollisionPointRec(mouse_pos, self.toRaylib());
     }
 
+    pub fn mouseWithinCamera(self: Rect, cam: raylib.Camera2D) bool {
+        const mouse_pos = raylib.GetMousePosition();
+        const screen_pos = raylib.GetScreenToWorld2D(mouse_pos, cam);
+        return raylib.CheckCollisionPointRec(screen_pos, self.toRaylib());
+    }
+
     pub fn mouseClick(self: Rect) bool {
         return self.mouseWithin() and interaction.mouseState(.pressed, null);
     }

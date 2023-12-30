@@ -10,6 +10,7 @@ const raylib = util.raylib;
 
 const textui = @import("text.zig");
 const interaction = @import("interaction.zig");
+const card = @import("card.zig");
 
 var topbar_height: f32 = 45.0;
 var topbar_resizer = interaction.Resizer.usingSides(.{
@@ -39,6 +40,7 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         proj.current_loaded_scene
     else
         null;
+    _ = &current_scene;
 
     if (current_scene) |scene| {
         raylib.BeginMode2D(cam);
@@ -81,34 +83,10 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
             );
         }
 
-        for (scene.cards.items) |card| {
-            raylib.DrawRectangleRec(.{
-                .x = card.rect.min_x,
-                .y = card.rect.min_y,
-                .width = card.rect.width(),
-                .height = card.rect.height(),
-            }, .{
-                .r = card.color[0],
-                .g = card.color[1],
-                .b = card.color[2],
-                .a = card.color[3],
-            });
+        card.reset();
+        for (scene.cards.items) |*c| {
+            card.card(c, cam) catch {};
         }
-
-        // objects
-        // for (points.items, 0..) |point, idx| {
-        //     _ = idx;
-
-        //     const converted_point = raylib.Vector2Multiply(point, .{
-        //         .x = 1,
-        //         .y = 1,
-        //     });
-        //     const within_horizontal = converted_point.x >= left_bound and converted_point.x <= right_bound;
-        //     const within_vertical = converted_point.y >= top_bound and converted_point.y <= bottom_bound;
-        //     if (!within_horizontal or !within_vertical) {
-        //         continue;
-        //     }
-        // }
     } else {
         rest_of_viewport.centered(120, 30).drawText(
             util.theme.current_theme.bold_font.loaded.?,
@@ -135,9 +113,14 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
         const text_allocator = fba.allocator();
 
         var text_rect = topbar_rec.extendAll(-10);
+
+        const text = if (current_scene) |scene|
+            std.fmt.allocPrint(text_allocator, "{s}", .{scene.name}) catch "?"
+        else
+            std.fmt.allocPrint(text_allocator, "No scene open", .{}) catch "?";
         text_rect.drawText(
             util.theme.current_theme.bold_font.loaded.?,
-            std.fmt.allocPrint(text_allocator, "{}", .{cam.zoom}) catch "?",
+            text,
             0.0,
             util.theme.current_theme.main_text_color,
             .left,
@@ -149,7 +132,7 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
 
     // position element
     if (current_scene) |scene| {
-        _ = scene; // autofix
+        _ = scene;
 
         var text_buffer: [256]u8 = .{0} ** 256;
         var fba = std.heap.FixedBufferAllocator.init(&text_buffer);
@@ -197,24 +180,29 @@ pub fn workspace(rec: util.Rect, block_inputs: bool) void {
 
         const mouse_pos = raylib.GetMousePosition();
         const world_pos = raylib.GetScreenToWorld2D(mouse_pos, cam);
+        _ = world_pos; // autofix
 
         if (rest_of_viewport.mouseClick()) {
-            current_scene.?.cards.append(.{
-                .color = .{
-                    @intCast(raylib.GetRandomValue(1, 255)),
-                    @intCast(raylib.GetRandomValue(1, 255)),
-                    @intCast(raylib.GetRandomValue(1, 255)),
-                    255,
-                },
-                .name = "a card",
-                .rect = .{
-                    .min_x = world_pos.x,
-                    .min_y = world_pos.y,
-                    .max_x = world_pos.x + 50,
-                    .max_y = world_pos.y + 50,
-                },
-            }) catch {};
+            card.deselect();
         }
+
+        // if (rest_of_viewport.mouseClick()) {
+        //     current_scene.?.cards.append(.{
+        //         .name = "a card",
+        //         .rect = .{
+        //             .min_x = world_pos.x,
+        //             .min_y = world_pos.y,
+        //             .max_x = world_pos.x + 200,
+        //             .max_y = world_pos.y + 50,
+        //         },
+        //         .inner = .{
+        //             .note = .{
+        //                 .allocator = current_scene.?.allocator,
+        //                 .content = current_scene.?.allocator.dupeZ(u8, "hiii!") catch unreachable,
+        //             },
+        //         },
+        //     }) catch {};
+        // }
     } else {
         captured_mouse = false;
     }

@@ -41,6 +41,7 @@ fn in_main(allocator: std.mem.Allocator) !void {
     app.start(proj);
     defer app.stop();
 
+    var was_focused = false;
     while (!raylib.WindowShouldClose()) {
         raylib.BeginDrawing();
         raylib.ClearBackground(raylib.BLACK);
@@ -48,6 +49,17 @@ fn in_main(allocator: std.mem.Allocator) !void {
         app.ui();
 
         raylib.EndDrawing();
+        if (was_focused) {
+            if (!raylib.IsWindowFocused()) {
+                was_focused = false;
+                raylib.EnableEventWaiting();
+            }
+        } else {
+            if (raylib.IsWindowFocused()) {
+                was_focused = true;
+                raylib.DisableEventWaiting();
+            }
+        }
     }
 }
 
